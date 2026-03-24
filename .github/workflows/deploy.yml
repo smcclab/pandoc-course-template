@@ -21,7 +21,7 @@ jobs:
       url: ${{ steps.deployment.outputs.page_url }}
     
     container:
-      image: pandoc/latex:3.7.0.1
+      image: pandoc/latex:3.9
       options: --user root
 
     steps:
