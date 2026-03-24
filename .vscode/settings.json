@@ -1,0 +1,13 @@
+{
+  "emeraldwalk.runonsave": {
+
+    "commands": [
+      {
+        // Run whenever a markdown file is saved
+        "match": ".md",
+        "cmd": "make all"
+      }
+    ]
+  },
+  "liveServer.settings.root": "/build"
+}

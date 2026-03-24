@@ -1,0 +1,70 @@
+name: Build and Deploy Course Materials
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    
+    container:
+      image: pandoc/latex:3.7.0.1
+      options: --user root
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Install Python and Dependencies
+        run: |
+          apk add --no-cache python3 py3-pip py3-yaml make 
+          tlmgr update --self
+          tlmgr install libertine \
+                  sourcecodepro \
+                  ly1 \
+                  sectsty \
+                  lastpage \
+                  hanging \
+                  beamer \
+                  beamertheme-metropolis \
+                  pgfopts \
+                  beamercolorthemeowl \
+                  noto \
+                  noto-emoji
+
+      - name: Install Dart Sass
+        run: |
+          wget -O dart-sass.tar.gz https://github.com/sass/dart-sass/releases/download/1.89.2/dart-sass-1.89.2-linux-x64-musl.tar.gz
+          tar -xzf dart-sass.tar.gz -C /usr/local/
+          echo "/usr/local/dart-sass" >> $GITHUB_PATH
+          rm dart-sass.tar.gz
+          /usr/local/dart-sass/sass --version
+
+      - name: Build public documents for website
+        run: |
+          make public
+
+      - name: Setup Pages
+        uses: actions/configure-pages@v5
+
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: './build'
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

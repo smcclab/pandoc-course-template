@@ -1,0 +1,324 @@
+// Default dark reveal theme for course presentations.
+@use 'sass:color';
+
+// fonts and typography
+@import url('https://fonts.googleapis.com/css2?family=Fira+Sans:ital,wght@0,400;0,700;1,400;1,700&display=swap');
+@import url("https://cdnjs.cloudflare.com/ajax/libs/inter-ui/4.1.0/inter.min.css");
+
+/* SCSS HEX */
+$darker-charcoal: rgb(21, 39, 46);
+$charcoal: #264653ff;
+$persian-green: #2a9d8fff;
+$saffron: #e9c46aff;
+$sandy-brown: #f4a261ff;
+$burnt-sienna: #e76f51ff;
+
+$text-color: #fafafa;
+$background-color: $darker-charcoal;
+$activity-background: $persian-green;
+$questions-background: $burnt-sienna;
+$highlight-color: $sandy-brown;
+$link-color: $burnt-sienna;
+$text-grey: #777;
+
+// Box colours
+$errorColour: #f00;
+$warnColour: #fc3;
+$infoColour: #3498db;
+$successColour: #2ecc71;
+$thinkColour: #e84393;
+$talkColour: #1abc9c;
+$pushColour: #d35400;
+$extensionColour: #9b59b6;
+
+@mixin lab-content-box ($colour){
+	color: $background-color;
+
+	h2 {
+		background-color: $colour;
+		padding-left: 1em;
+		border: none;
+	}
+}
+
+.reveal .slides {
+	.error-box {
+		@include lab-content-box($errorColour);
+	}
+	.warn-box {
+		@include lab-content-box($warnColour);
+	}
+	.info-box {
+		@include lab-content-box($infoColour);
+	}
+	.success-box {
+		@include lab-content-box($successColour);
+	}
+	.think-box {
+		@include lab-content-box($thinkColour);
+	}
+	.talk-box {
+		@include lab-content-box($talkColour);
+	}
+	.push-box {
+		@include lab-content-box($pushColour);
+	}
+	.extension-box {
+		@include lab-content-box($extensionColour);
+	}
+	.activity {
+		h2 {
+			background-color: $activity-background;
+			padding: 0.2em 0.4em;
+			border: none;
+		}
+	}
+	.questions {
+		h2 {
+			background-color: $questions-background;
+			padding: 0.2em 0.4em;
+			border: none;
+		}
+	}
+}
+
+
+// Dark mode activated.
+.reveal {
+	background-color: $background-color;
+	color: $text-color;
+}
+
+:root {
+	background-color: $background-color;
+	color: $text-color;
+  font-family: "Fira Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol";
+	font-size: 50px; //2.0vw;
+}
+
+@supports (font-variation-settings: normal) {
+	  :root {
+        font-family: "Fira Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol";
+	}
+}
+
+// the main reveal slides div
+// each slide will be in a standalone section
+.reveal .slides section {
+	// a bit of margin at the top
+	margin-top: 1rem;
+
+	// text
+	font-weight: 300;
+	line-height: 1.3;
+	text-align: left;
+
+	// give everything room to breathe
+	&>* { margin-bottom: 1rem; }
+
+	// inline emphasis
+	em { font-style: italic; }
+	strong { font-weight: 900; }
+
+	// links
+	a {
+		color: $link-color;
+		text-decoration: none;
+		font-weight: 900;
+
+		&:hover {
+			color: $background-color;
+			background-color: $text-color;
+		}
+
+		transition-property: color, background-color;
+		transition-duration: 0.5s;
+	}
+
+    // headers
+	h1 {
+		font-size: 1.6rem;
+		font-weight: 900;
+		border-bottom-color: $highlight-color;
+		border-bottom-style: solid;
+		border-bottom-width: 5px;
+	}
+	h2 {
+		font-size: 1.2rem;
+		font-weight: 900;
+	}
+	// make headings on background image slides readable
+    &[data-background-image] {
+        h1,h2,p {
+            background-color: color.adjust($text-color, $alpha: -0.25);
+            color: $background-color;
+            display: table;
+            padding: 0.2em 0.4em;
+        }
+    }
+
+    &[data-background-image] {
+        ul {
+	    background-color: color.adjust($text-color, $alpha: -0.25);
+	    color: $background-color;
+	    display: table;
+	}
+    }
+
+	// lists
+
+	ul,ol { padding-left: 1rem; }
+
+	li {
+		margin-bottom: 0.4rem;
+	}
+
+	// tables
+	table {
+		width: 100%;
+	}
+
+	// title slide
+	&.title-slide {
+		header {
+			h1,p {
+				border: none;
+				margin: 0;
+				padding: 0.2em 0.4em;
+			}
+			border-bottom-color: $highlight-color;
+			border-bottom-style: solid;
+			border-bottom-width: 5px;
+		}
+		h2 {
+			font-size: 1rem;
+		}
+	}
+
+    // impact slides
+	// slide background needs to be provided through data-background-color
+    &.impact {
+        font-size: 2rem;
+        text-align: center;
+        color: #fafafa;
+        font-weight: 900;
+        strong { color: #f39c12; }
+		a { color: color.adjust($highlight-color, $lightness: 30%); }
+    }
+
+	// source code display
+	code {
+		font-family: "Courier", monospace;
+		font-weight: 400;
+		padding: 0.2rem;
+		border-radius: 0.2rem;
+		color: color.adjust($highlight-color, $lightness: -10%);
+	}
+	a > code:hover {
+		color: $background-color;
+		background: linear-gradient(to right, color.adjust($highlight-color, $lightness: -20%), $highlight-color);
+	}
+	pre > code {
+		color: $text-color;
+		border: none;
+		background: linear-gradient(to right, #282c34, color.adjust(#282c34, $lightness: 10%));
+		line-height: 1.2;
+	}
+
+	// pretty blockquotes
+    // from https://css-tricks.com/snippets/css/simple-and-nice-blockquote-styling/
+    blockquote {
+		margin: 0;
+        background-color: color.adjust($background-color, $lightness: -8%);
+        border-left: 10px solid #ccc;
+        padding: 0.5em 0.5em;
+        quotes: "\201C""\201D""\2018""\2019";
+    }
+    blockquote:before {
+        color: #ccc;
+        content: open-quote;
+        font-size: 3em;
+        line-height: 0.1em;
+        vertical-align: -0.4em;
+    }
+    blockquote p {
+        display: inline;
+		font-style: normal;
+    }
+
+	.image-credit {
+		  $creditOpacity: 0.5;
+      $linkOpacity: 0.1;
+        background-color: color.adjust($text-color, $alpha: -$creditOpacity);
+		    color: color.adjust($text-color, $alpha: -0.1);
+		    padding: 0.5em;
+		    margin: 0;
+		    font-size: 0.5em;
+        display: table;
+
+		    // attach to bottom(ish)
+		    // setting "bottom" doesn't work because reveal.js shenanigans
+		    position: fixed;
+		    top: 85vh;
+		    left: 0;
+
+		    p {
+			      background-color: unset;
+			      margin: 0em;
+		    }
+
+		    .image-credit-artist { font-weight: 900; }
+		    /* .image-credit-title { font-style: italic; } */
+		    .image-credit-year { font-style: italic; }
+
+		    // links undecorated except on mouse-over
+		    a {
+			      color: color.adjust($link-color, $alpha: -$linkOpacity);
+			      &:hover{
+				        color: $link-color;
+			      }
+		    }
+
+		    // transition to opaque on hover
+		    transition: all 0.5s ease-out;
+		    &:hover{
+			      background-color: $text-color;
+			      color: $background-color;
+		    }
+	}
+}
+
+.reveal img,
+.reveal video,
+.reveal iframe {
+  max-width: 95%;
+  max-height: 95%; }
+
+
+// slide-number boxes in bottom-right-hand-corner
+.reveal {
+	.slide-number {
+
+		a {
+			text-decoration: none;
+		}
+
+		// pretty pink highlighting on mouseover
+		&:hover {
+			background-color: $highlight-color;
+		}
+		transition-property: background-color;
+		transition-duration: 0.5s;
+	}
+
+    // progress bar
+    .progress {
+	    color: $highlight-color;
+        height: 0.4rem;
+    }
+}
+
+// small table
+.small-table table {
+  font-size: .65em
+}
