@@ -15,10 +15,10 @@ RESOURCES_OUT = $(OUTPUT_DIR)/resources
 REFERENCES = references.bib
 
 # Images
-LECTURES_IMG := $(wildcard lectures/img/*.png lectures/img/*.jpg)
-RESOURCES_IMG := $(wildcard resources/img/*.png resources/img/*.jpg)
-WORKSHOPS_IMG := $(wildcard workshops/img/*.png workshops/img/*.jpg)
-ASSESSMENTS_IMG := $(wildcard assessments/img/*.png assessments/img/*.jpg)
+LECTURES_IMG := $(wildcard lectures/img/*.png lectures/img/*.jpg lectures/img/*.jpeg lectures/img/*.svg lectures/img/*.gif lectures/img/*.webp)
+RESOURCES_IMG := $(wildcard resources/img/*.png resources/img/*.jpg resources/img/*.jpeg resources/img/*.svg resources/img/*.gif resources/img/*.webp)
+WORKSHOPS_IMG := $(wildcard workshops/img/*.png workshops/img/*.jpg workshops/img/*.jpeg workshops/img/*.svg workshops/img/*.gif workshops/img/*.webp)
+ASSESSMENTS_IMG := $(wildcard assessments/img/*.png assessments/img/*.jpg assessments/img/*.jpeg assessments/img/*.svg assessments/img/*.gif assessments/img/*.webp)
 ALL_SRC_IMGS := $(LECTURES_IMG) $(RESOURCES_IMG) $(WORKSHOPS_IMG) $(ASSESSMENTS_IMG)
 
 # build targets
@@ -27,6 +27,11 @@ RESOURCES_BUILD_IMG := $(patsubst resources/img/%,build/resources/img/%,$(RESOUR
 WORKSHOPS_BUILD_IMG := $(patsubst workshops/img/%,build/workshops/img/%,$(WORKSHOPS_IMG))
 ASSESSMENTS_BUILD_IMG := $(patsubst assessments/img/%,build/assessments/img/%,$(ASSESSMENTS_IMG))
 ALL_BUILD_IMGS := $(LECTURES_BUILD_IMG) $(RESOURCES_BUILD_IMG) $(WORKSHOPS_BUILD_IMG) $(ASSESSMENTS_BUILD_IMG)
+
+# Course metadata from _config.toml
+CONFIG = _config.toml
+CONFIG_AUTHOR := $(shell python3 -c "import tomllib; f=open('$(CONFIG)','rb'); d=tomllib.load(f); print(d['author'])")
+CONFIG_YEAR := $(shell python3 -c "import tomllib; f=open('$(CONFIG)','rb'); d=tomllib.load(f); print(d['year'])")
 
 # Index generation
 INDEX_HTML = $(OUTPUT_DIR)/index.html
@@ -96,7 +101,7 @@ REVEAL_OPTS = -t revealjs \
 							-V slideNumber=true \
 							--css reveal_dark.css
 
-PDF_OPTS = --metadata date="$(date '+%Y-%m-%d')" \
+PDF_OPTS = --metadata date="$(shell date '+%Y-%m-%d')" \
 					 --number-sections=true \
 					 -V 'geometry: left=2.5cm,right=2.5cm,top=2.5cm,bottom=2.5cm' \
 		       -V 'papersize: a4' \
@@ -209,13 +214,13 @@ ALL_ASSESSMENTS = $(OUTPUT_DIR)/all_assessments.pdf
 ALL_WORKSHOPS = $(OUTPUT_DIR)/all_workshops.pdf
 
 $(ALL_LECTURES): $(LECTURE_MDS)
-	$(PANDOC) $(PANDOC_COMMON_OPTS) $(PDF_OPTS) --metadata title="All Lectures" --metadata author="Course Author" --metadata date="2025" --toc=true -o $@ $^
+	$(PANDOC) $(PANDOC_COMMON_OPTS) $(PDF_OPTS) --metadata title="All Lectures" --metadata author="$(CONFIG_AUTHOR)" --metadata date="$(CONFIG_YEAR)" --toc=true -o $@ $^
 
 $(ALL_ASSESSMENTS): $(ASSESSMENTS_MDS)
-	$(PANDOC) $(PANDOC_COMMON_OPTS) $(PDF_OPTS) --metadata title="All Assessments" --metadata author="Course Author" --metadata date="2025" --toc=true -o $@ $^
+	$(PANDOC) $(PANDOC_COMMON_OPTS) $(PDF_OPTS) --metadata title="All Assessments" --metadata author="$(CONFIG_AUTHOR)" --metadata date="$(CONFIG_YEAR)" --toc=true -o $@ $^
 
 $(ALL_WORKSHOPS): $(WORKSHOPS_MDS)
-	$(PANDOC) $(PANDOC_COMMON_OPTS) $(PDF_OPTS) --metadata title="All Workshops" --metadata author="Course Author" --metadata date="2025" --toc=true -o $@ $^
+	$(PANDOC) $(PANDOC_COMMON_OPTS) $(PDF_OPTS) --metadata title="All Workshops" --metadata author="$(CONFIG_AUTHOR)" --metadata date="$(CONFIG_YEAR)" --toc=true -o $@ $^
 
 .PHONY: bigfiles
 bigfiles: $(ALL_LECTURES) $(ALL_ASSESSMENTS) $(ALL_WORKSHOPS)
