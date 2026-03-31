@@ -4,8 +4,9 @@
     "commands": [
       {
         // Run whenever a markdown file is saved
+        // Just builds html, not pdf to save time when editing.
         "match": ".md",
-        "cmd": "make all"
+        "cmd": "make html"
       }
     ]
   },
