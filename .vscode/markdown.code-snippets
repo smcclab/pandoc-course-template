@@ -15,11 +15,106 @@
 	"Slide with Columns": {
 		"prefix": "columns",
 		"body": [":::::::::::::: {.columns}\n::: {.column width=\"${1:60%}\"}\n${2:left-column}\n:::\n::: {.column width=\"${3:40%}\"}\n${4:right-column}\n:::\n::::::::::::::\n$0"],
-		"description": "Bold text"
+		"description": "Two-column slide layout"
 	},
-  "Image with width": {
-    "prefix": "imagew",
-    "body": ["![${1:alt text}](${2:image url}){width=\"${3:50%}\"}$0"],
-    "description": "Image with width"
-  }
+	"Image with width": {
+		"prefix": "imagew",
+		"body": ["![${1:alt text}](${2:image url}){width=\"${3:50%}\"}$0"],
+		"description": "Image with width"
+	},
+	"New Slide": {
+		"prefix": "slide",
+		"body": ["## ${1:Slide Title}\n\n$0"],
+		"description": "New slide (## heading)"
+	},
+	"New Section": {
+		"prefix": "section",
+		"body": ["# ${1:Section Title}\n\n$0"],
+		"description": "New section title slide (# heading)"
+	},
+	"Slide Frontmatter": {
+		"prefix": "frontmatter",
+		"body": [
+			"---",
+			"title: \"${1:Title}\"",
+			"author: ${2:Author}",
+			"title-slide-attributes:",
+			"    data-background-image: img/${3:background.jpg}",
+			"    data-background-size: cover",
+			"---",
+			"",
+			"$0"
+		],
+		"description": "Lecture frontmatter with title-slide background image"
+	},
+	"Slide with Background Image": {
+		"prefix": "slidebg",
+		"body": ["## ${1:Slide Title} {background-image=\"img/${2:image.jpg}\" background-size=\"${3:cover}\"}\n\n$0"],
+		"description": "Slide with background image"
+	},
+	"Speaker Notes": {
+		"prefix": "notes",
+		"body": [":::notes\n${1:Speaker notes here.}\n:::\n$0"],
+		"description": "Reveal.js speaker notes block"
+	},
+	"Citation": {
+		"prefix": "cite",
+		"body": ["[@${1:bibtex-key}]$0"],
+		"description": "Pandoc citation"
+	},
+	"Citation with Page": {
+		"prefix": "citep",
+		"body": ["[@${1:bibtex-key}, p${2:26}]$0"],
+		"description": "Pandoc citation with page number"
+	},
+	"Info Box": {
+		"prefix": "infobox",
+		"body": ["::: {.info-box}\n### ${1:Info}\n\n${2:Content}\n:::\n$0"],
+		"description": "Info callout box"
+	},
+	"Warning Box": {
+		"prefix": "warnbox",
+		"body": ["::: {.warn-box}\n### ${1:Warning}\n\n${2:Content}\n:::\n$0"],
+		"description": "Warning callout box"
+	},
+	"Error Box": {
+		"prefix": "errorbox",
+		"body": ["::: {.error-box}\n### ${1:Error}\n\n${2:Content}\n:::\n$0"],
+		"description": "Error callout box"
+	},
+	"Success Box": {
+		"prefix": "successbox",
+		"body": ["::: {.success-box}\n### ${1:Success}\n\n${2:Content}\n:::\n$0"],
+		"description": "Success callout box"
+	},
+	"Activity Box": {
+		"prefix": "activity",
+		"body": ["::: {.activity}\n### ${1:Activity Title}\n\n${2:Instructions}\n:::\n$0"],
+		"description": "Activity section box"
+	},
+	"Think Box": {
+		"prefix": "think",
+		"body": ["::: {.think-box}\n### Think\n\n${1:Prompt}\n:::\n$0"],
+		"description": "Think activity box"
+	},
+	"Talk Box": {
+		"prefix": "talk",
+		"body": ["::: {.talk-box}\n### Talk\n\n${1:Prompt}\n:::\n$0"],
+		"description": "Talk/discuss activity box"
+	},
+	"Push Box": {
+		"prefix": "push",
+		"body": ["::: {.push-box}\n### Push\n\n${1:Prompt}\n:::\n$0"],
+		"description": "Push/challenge activity box"
+	},
+	"Extension Box": {
+		"prefix": "extension",
+		"body": ["::: {.extension-box}\n### Extension\n\n${1:Prompt}\n:::\n$0"],
+		"description": "Extension activity box"
+	},
+	"Questions Slide": {
+		"prefix": "questions",
+		"body": ["::: {.questions}\n### ${1:Questions?}\n\n${2:Content}\n:::\n$0"],
+		"description": "Questions section box"
+	}
 }

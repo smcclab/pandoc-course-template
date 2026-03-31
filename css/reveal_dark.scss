@@ -32,12 +32,26 @@ $pushColour: #d35400;
 $extensionColour: #9b59b6;
 
 @mixin lab-content-box ($colour){
-	color: $background-color;
+	border-left: 8px solid $colour;
+	background-color: color.adjust($colour, $alpha: -0.85);
+	padding: 0.4em 0.8em;
+	color: $text-color;
 
-	h2 {
+	// Bold text at the start of a paragraph acts as the box label
+	p:first-child > strong:first-child {
+		color: $colour;
+	}
+}
+
+@mixin section-box ($colour){
+	// Bold text at the start of a paragraph acts as the box label
+	p:first-child > strong:first-child {
+		display: block;
 		background-color: $colour;
-		padding-left: 1em;
-		border: none;
+		color: $text-color;
+		padding: 0.2em 0.4em;
+		margin-bottom: 0.3em;
+		font-size: 1.1em;
 	}
 }
 
@@ -67,18 +81,10 @@ $extensionColour: #9b59b6;
 		@include lab-content-box($extensionColour);
 	}
 	.activity {
-		h2 {
-			background-color: $activity-background;
-			padding: 0.2em 0.4em;
-			border: none;
-		}
+		@include section-box($activity-background);
 	}
 	.questions {
-		h2 {
-			background-color: $questions-background;
-			padding: 0.2em 0.4em;
-			border: none;
-		}
+		@include section-box($questions-background);
 	}
 }
 
