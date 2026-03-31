@@ -2,6 +2,8 @@
 
 A template for developing course materials (lectures, workshops, assessments, resources) in Markdown and building them into HTML presentations (reveal.js) and PDFs (Beamer/LaTeX) using pandoc.
 
+Includes VS Code integration for live rebuilds, snippets, and a build task.
+
 ## Getting Started
 
 1. Create a new repository from this template (click "Use this template" on GitHub)
@@ -36,6 +38,30 @@ See the Makefile for additional targets (`reveal`, `beamer`, `assessments`, `wor
 ## Deploying
 
 The included GitHub Actions workflow (`.github/workflows/deploy.yml`) runs `make public` on push to `main` and deploys the `build/` directory to GitHub Pages. The `public` target excludes `resources/`, making them suitable for internal or staff-only materials.
+
+## VS Code Integration
+
+The `.vscode/` directory includes some quality-of-life configurations:
+
+**Auto-rebuild on save** (via the [Run on Save](https://marketplace.visualstudio.com/items?itemName=emeraldwalk.RunOnSave) extension) — `make all` runs automatically whenever a Markdown file is saved. Pair this with the [Live Server](https://marketplace.visualstudio.com/items?itemName=ritwickdey.LiveServer) extension (configured to serve from `build/`) to get a live preview in the browser as you edit.
+
+**Build task** — `Cmd+Shift+B` (or `Ctrl+Shift+B`) runs `make all` from the VS Code task runner.
+
+**Markdown snippets** — tab-completable shortcuts for common slide constructs:
+
+| Prefix | Inserts |
+|---|---|
+| `slide` | New `##` slide |
+| `section` | New `#` section title slide |
+| `frontmatter` | YAML front matter with title-slide background image |
+| `slidebg` | Slide heading with background image attribute |
+| `columns` | Two-column layout |
+| `notes` | Speaker notes block |
+| `cite` / `citep` | Citation, with and without page number |
+| `infobox` / `warnbox` / `errorbox` / `successbox` | Callout boxes |
+| `think` / `talk` / `push` / `extension` | Activity instruction boxes |
+| `activity` | Activity section box |
+| `questions` | Questions section box |
 
 ## Contributing
 
