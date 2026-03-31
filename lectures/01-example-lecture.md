@@ -48,6 +48,8 @@ Here's another one.
 
 Content can overlay a background image.
 
+Image of [Sullivans Creek, ANU Campus, Canberra](https://en.wikipedia.org/wiki/Sullivans_Creek).
+
 ## Speaker Notes
 
 This slide has speaker notes — press `S` in the browser to open the presenter view.
