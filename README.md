@@ -11,6 +11,10 @@ Includes VS Code integration for live rebuilds, snippets, and a build task.
 3. Add your content as Markdown files in the `lectures/`, `assessments/`, `workshops/`, and `resources/` directories
 4. Add references to `references.bib` in BibTeX format
 
+### Dev Container
+
+A [dev container](https://containers.dev/) is included (`.devcontainer/`), providing a fully configured environment with pandoc, LaTeX, Dart Sass, Python, and Make — identical to the CI build environment. Open the repository in VS Code (or GitHub Codespaces) and choose **Reopen in Container** to get started immediately without any local tool installation.
+
 ## Content Structure
 
 - `lectures/` — Slide decks (`.md`), built to reveal.js HTML + Beamer PDF
