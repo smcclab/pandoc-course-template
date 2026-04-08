@@ -12,28 +12,23 @@
 -- Example:
 --   ## My Slide {background-image="img/hero.jpg" background-size="cover"}
 --
--- Title slide (frontmatter):
---   title-slide-attributes:
---     data-background-image: img/hero.jpg
---     data-background-size: cover
---     data-background-opacity: "0.5"      (optional)
+-- Note: title-slide backgrounds (title-slide-attributes) are not handled
+-- here; \frame{\titlepage} does not trigger \BeforeBeginEnvironment{frame}
+-- and requires separate treatment.
 --
 -- ── Strategy ─────────────────────────────────────────────────────────────────
--- The pandoc beamer template emits the title frame as \frame{\titlepage} and
--- section-title frames as \frame{\sectionpage}.  The \frame{} command does NOT
--- trigger etoolbox's \BeforeBeginEnvironment{frame} hook (which only fires for
--- the environment form \begin{frame}).  Content slides, however, always use
--- \begin{frame}, so the hook fires reliably for them.
+-- Content slides always use \begin{frame}, so \BeforeBeginEnvironment{frame}
+-- fires reliably at the true outer TeX level before any group opens.
 --
--- Hybrid approach:
---   • Title slide  – direct \usebackgroundtemplate in the preamble, cleared by
---                    a reset injected as the very first body block (before any
---                    \begin{frame} or \frame{\sectionpage}).
---   • Content slides – a global flag (\ifbgpending) is armed just before the
---                    target \begin{frame}; \BeforeBeginEnvironment{frame} reads
---                    the flag and either applies or resets the background at
---                    the true outer TeX level, avoiding all \aftergroup /
---                    \egroup layering problems.
+-- A raw LaTeX block is inserted just before each background heading to arm a
+-- global flag (\ifbgpending).  The hook reads the flag and installs a TikZ-
+-- based \setbeamertemplate{background} overlay.  Using the overlay layer
+-- (never \usebackgroundtemplate / background canvas) means the beamer theme's
+-- own canvas colour is never disturbed.
+--
+-- A second flag (\ifbgactive) tracks whether a background is currently applied
+-- so that plain frames only receive a reset call on the transition from a
+-- background slide, leaving all other frames' default styling completely intact.
 
 local function is_opaque(opacity)
   return opacity == nil or opacity == "" or opacity == "1" or opacity == "1.0"
@@ -52,55 +47,10 @@ local function resolve_image_path(image)
   return pandoc.path.join({base, image})
 end
 
--- ── Title-slide helpers (direct template, same as original approach) ──────────
-
-local function set_background_latex(image, size, opacity)
-  size = size or "cover"
-  local img_opts
-  if size == "contain" then
-    img_opts = "width=\\paperwidth,height=\\paperheight,keepaspectratio"
-  else
-    img_opts = "width=\\paperwidth,height=\\paperheight"
-  end
-
-  if is_opaque(opacity) then
-    return string.format(
-      "\\usebackgroundtemplate{\\includegraphics[%s]{%s}}",
-      img_opts, image
-    )
-  else
-    return string.format(
-      "\\setbeamertemplate{background}{%%\n" ..
-      "  \\begin{tikzpicture}[remember picture,overlay]\n" ..
-      "    \\node[opacity=%s] at (current page.center)\n" ..
-      "      {\\includegraphics[%s]{%s}};\n" ..
-      "  \\end{tikzpicture}%%\n" ..
-      "}",
-      opacity, img_opts, image
-    )
-  end
-end
-
--- Schedule a one-shot background reset that fires AFTER the title page ships
--- out (using LaTeX 2020's \AddToHookNext).  This avoids inserting a raw block
--- in the document body, which pandoc would wrap in an extra blank \begin{frame}
--- and produce a spurious blank page between the title and the first section.
-local function title_reset_latex()
-  return table.concat({
-    "% Reset background after the title page ships (one-shot hook).",
-    "\\AddToHookNext{shipout/after}{%",
-    "  \\usebackgroundtemplate{}%",
-    "  \\setbeamertemplate{background}{}%",
-    "}",
-  }, "\n")
-end
-
--- ── Content-slide helpers (flag + BeforeBeginEnvironment hook) ────────────────
-
 -- Arm the global flag just before a \begin{frame}.
--- \BeforeBeginEnvironment{frame} will read these globals and apply or clear
--- the background at the outer TeX level (before any frame group is opened),
--- then clear the flag so all subsequent frames revert automatically.
+-- Even if this raw block lands inside the previous frame's body (e.g. inside
+-- a block environment), \gdef/\global assignments are unconditionally global
+-- in TeX and will be visible when the hook fires for the next \begin{frame}.
 local function set_pending_latex(image, size, opacity)
   size = size or "cover"
   local lines = {
@@ -117,33 +67,49 @@ local function set_pending_latex(image, size, opacity)
   return table.concat(lines, "\n")
 end
 
--- Preamble block: defines the \BeforeBeginEnvironment{frame} hook and the
--- global variables it uses.  Installed only when at least one content slide
--- requests a background.
+-- Preamble block: declares flags/macros and installs the hook.
+--
+-- All image backgrounds are rendered as a TikZ \setbeamertemplate{background}
+-- overlay so that the beamer background canvas (theme colours) is never
+-- touched.  Conditionals are evaluated inside the hook (at outer TeX level,
+-- before the frame group opens) so the correct template variant is installed
+-- before beamer captures it for the frame.
+--
+-- \ifbgactive ensures plain frames only issue a \setbeamertemplate{background}{}
+-- reset on the single frame that follows a background slide, and are otherwise
+-- left untouched.
 local PREAMBLE_HOOK = [[
 \usepackage{etoolbox}
-\newif\ifbgpending
-\newif\ifbgopaque
+\usepackage{tikz}
+\newif\ifbgpending  % true → next \begin{frame} should receive a background image
+\newif\ifbgopaque   % true → opaque (no alpha); false → semi-transparent TikZ node
+\newif\ifbgactive   % true → a background is applied; reset on next plain frame
 \global\bgpendingfalse
 \global\bgopaquetrue
+\global\bgactivefalse
 \gdef\bgpendingimage{}
 \gdef\bgpendingsize{cover}
 \gdef\bgpendingopc{1}
-% This hook fires at the true outer TeX level, before \begin{frame} opens
-% any group, so assignments here are safe and global without \global.
+% Hook fires at the true outer TeX level, before \begin{frame} opens any group.
 \BeforeBeginEnvironment{frame}{%
   \ifbgpending
     \def\tmpbgsize{\bgpendingsize}%
     \def\tmpcontain{contain}%
     \ifbgopaque
       \ifx\tmpbgsize\tmpcontain
-        \usebackgroundtemplate{%
-          \includegraphics[width=\paperwidth,height=\paperheight,keepaspectratio]%
-            {\bgpendingimage}}%
+        \setbeamertemplate{background}{%
+          \begin{tikzpicture}[remember picture,overlay]
+            \node at (current page.center)
+              {\includegraphics[width=\paperwidth,height=\paperheight,
+                                keepaspectratio]{\bgpendingimage}};
+          \end{tikzpicture}}%
       \else
-        \usebackgroundtemplate{%
-          \includegraphics[width=\paperwidth,height=\paperheight]%
-            {\bgpendingimage}}%
+        \setbeamertemplate{background}{%
+          \begin{tikzpicture}[remember picture,overlay]
+            \node at (current page.center)
+              {\includegraphics[width=\paperwidth,height=\paperheight]%
+                {\bgpendingimage}};
+          \end{tikzpicture}}%
       \fi
     \else
       \ifx\tmpbgsize\tmpcontain
@@ -164,11 +130,14 @@ local PREAMBLE_HOOK = [[
     \fi
     \global\bgpendingfalse
     \global\bgopaquetrue
+    \global\bgactivetrue
   \else
-    % No background pending: reset both template slots so that a background
-    % from a previous slide does not bleed into this one.
-    \usebackgroundtemplate{}%
-    \setbeamertemplate{background}{}%
+    \ifbgactive
+      % Transitioning from a background slide to a plain slide: clear only the
+      % overlay layer so the theme's background canvas colour is preserved.
+      \setbeamertemplate{background}{}%
+      \global\bgactivefalse
+    \fi
   \fi
 }]]
 
@@ -189,10 +158,9 @@ function Pandoc(doc)
   if FORMAT ~= "beamer" then return nil end
 
   local new_blocks     = {}
-  local has_content_bg = false   -- any ## slide requests a background
-  local needs_tikz     = false   -- any opacity was used anywhere
+  local has_content_bg = false
 
-  -- ── Content slides: inject flag-setter before each background heading ───────
+  -- Inject flag-setter raw blocks before each background-image heading.
   for _, block in ipairs(doc.blocks) do
     if block.t == "Header" and (block.level == 1 or block.level == 2) then
       local bg      = block.attr.attributes["background-image"]
@@ -201,17 +169,11 @@ function Pandoc(doc)
 
       if bg then
         has_content_bg = true
-        if not is_opaque(opacity) then needs_tikz = true end
 
-        -- Arm the flag just before the heading; even if this raw block ends
-        -- up inside the previous frame (inside a block environment), the
-        -- \gdef / \global assignments are unconditionally global in TeX and
-        -- will be visible when \BeforeBeginEnvironment{frame} fires for the
-        -- *next* \begin{frame}.
         table.insert(new_blocks, pandoc.RawBlock("latex",
           set_pending_latex(resolve_image_path(bg), size, opacity)))
 
-        -- Strip background attrs so Beamer doesn't trip on unknown keys.
+        -- Strip attrs so Beamer doesn't trip on unknown keys.
         block.attr.attributes["background-image"]   = nil
         block.attr.attributes["background-size"]    = nil
         block.attr.attributes["background-opacity"] = nil
@@ -221,47 +183,10 @@ function Pandoc(doc)
     table.insert(new_blocks, block)
   end
 
-  -- ── Title slide: direct template in preamble + post-shipout reset ───────────
-  -- \frame{\titlepage} does NOT trigger \BeforeBeginEnvironment{frame}, so the
-  -- flag mechanism cannot be used.  Instead the template is set directly in the
-  -- preamble and a \AddToHookNext{shipout/after} one-shot hook resets it after
-  -- the title page ships.  (Inserting a raw reset block in the document body
-  -- would cause pandoc to wrap it in a spurious blank \begin{frame}.)
-  -- NOTE: section-separator pages also use \frame{\sectionpage} and are equally
-  -- invisible to the hook; the shipout reset targets them too.
-  local meta = doc.meta
-  local tsa  = meta["title-slide-attributes"]
-  if tsa then
-    local bg      = tsa["data-background-image"]
-    local size    = tsa["data-background-size"]
-    local opacity = tsa["data-background-opacity"]
-
-    if bg then
-      bg      = pandoc.utils.stringify(bg)
-      size    = size    and pandoc.utils.stringify(size)    or "cover"
-      opacity = opacity and pandoc.utils.stringify(opacity) or nil
-
-      local use_tikz = not is_opaque(opacity)
-      if use_tikz then needs_tikz = true end
-
-      prepend_header_include(meta,
-        set_background_latex(resolve_image_path(bg), size, opacity))
-
-      -- Schedule a one-shot reset that fires after the title page ships out.
-      -- Inserting a raw LaTeX reset as the first body block would cause pandoc
-      -- to wrap it in an extra \begin{frame}, creating a spurious blank page.
-      prepend_header_include(meta, title_reset_latex())
-    end
-  end
-
-  -- ── Preamble: install hook infrastructure (content slides only) ─────────────
+  -- Install preamble hook only when at least one content slide needs it.
   if has_content_bg then
-    if needs_tikz then
-      prepend_header_include(meta, "\\usepackage{tikz}")
-    end
-    -- PREAMBLE_HOOK goes first (outermost prepend applied last).
-    prepend_header_include(meta, PREAMBLE_HOOK)
+    prepend_header_include(doc.meta, PREAMBLE_HOOK)
   end
 
-  return pandoc.Pandoc(new_blocks, meta)
+  return pandoc.Pandoc(new_blocks, doc.meta)
 end
