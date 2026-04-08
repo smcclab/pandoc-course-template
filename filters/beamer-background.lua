@@ -22,6 +22,19 @@ local function is_opaque(opacity)
   return opacity == nil or opacity == "" or opacity == "1" or opacity == "1.0"
 end
 
+-- Resolve an image path to absolute so lualatex can find it regardless of
+-- the temp directory it runs from.  Relative paths are resolved against the
+-- directory containing the first input file.
+local function resolve_image_path(image)
+  if pandoc.path.is_absolute(image) then return image end
+  local input = PANDOC_STATE and PANDOC_STATE.input_files and PANDOC_STATE.input_files[1]
+  if not input then return image end
+  local base = pandoc.path.directory(pandoc.path.join({
+    pandoc.system.get_working_directory(), input
+  }))
+  return pandoc.path.join({base, image})
+end
+
 -- Build the LaTeX command that sets the background for one frame.
 local function set_background_latex(image, size, opacity)
   size = size or "cover"
@@ -99,7 +112,7 @@ function Pandoc(doc)
         local use_tikz = not is_opaque(opacity)
         if use_tikz then needs_tikz = true end
         table.insert(new_blocks, pandoc.RawBlock("latex",
-          set_background_latex(bg, size, opacity)))
+          set_background_latex(resolve_image_path(bg), size, opacity)))
         in_bg   = true
         bg_tikz = use_tikz
 
@@ -138,7 +151,7 @@ function Pandoc(doc)
 
       -- Set the background before the title frame, then reset it inside the
       -- title page template (runs after \titlepage, before \end{frame}).
-      local latex = set_background_latex(bg, size, opacity) .. "\n" ..
+      local latex = set_background_latex(resolve_image_path(bg), size, opacity) .. "\n" ..
         "\\addtobeamertemplate{title page}{}{" ..
         reset_background_latex(use_tikz) .. "}"
 
