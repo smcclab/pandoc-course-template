@@ -64,7 +64,8 @@ BEAMER_OPTS = -t beamer \
               -V colortheme=owl \
               --pdf-engine=lualatex \
               -V mainfont="Noto Sans" \
-              -V mainfontfallback="NotoColorEmoji:mode=harf"
+              -V mainfontfallback="NotoColorEmoji:mode=harf" \
+              --lua-filter=filters/beamer-background.lua
 
 # --pdf-engine=xelatex
 
