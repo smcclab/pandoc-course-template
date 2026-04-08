@@ -1,0 +1,32 @@
+{
+  "name": "Pandoc Course Template",
+  "build": {
+    "dockerfile": "Dockerfile"
+  },
+  // Forward Live Server port for in-browser preview
+  "forwardPorts": [5500],
+  "portsAttributes": {
+    "5500": {
+      "label": "Live Server",
+      "onAutoForward": "openBrowser"
+    }
+  },
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        // Markdown authoring
+        "yzhang.markdown-all-in-one",
+        "DavidAnson.vscode-markdownlint",
+        // Auto-rebuild on save (used by .vscode/settings.json)
+        "emeraldwalk.runonsave",
+        // Live preview of the build/ output
+        "ritwickdey.liveserver"
+      ],
+      "settings": {
+        "terminal.integrated.defaultProfile.linux": "bash"
+      }
+    }
+  },
+  // Run as root to match CI environment and avoid permission issues
+  "remoteUser": "root"
+}
