@@ -149,13 +149,15 @@ function Pandoc(doc)
       local use_tikz = not is_opaque(opacity)
       if use_tikz then needs_tikz = true end
 
-      -- Set the background before the title frame, then reset it inside the
-      -- title page template (runs after \titlepage, before \end{frame}).
-      local latex = set_background_latex(resolve_image_path(bg), size, opacity) .. "\n" ..
-        "\\addtobeamertemplate{title page}{}{" ..
-        reset_background_latex(use_tikz) .. "}"
+      -- Set the background in the preamble so lualatex applies it to the
+      -- title frame, which pandoc's template emits before $body$.
+      prepend_header_include(meta, set_background_latex(resolve_image_path(bg), size, opacity))
 
-      prepend_header_include(meta, latex)
+      -- Reset the background as the very first body block so that all
+      -- content frames following the title frame have the default background.
+      -- Using \addtobeamertemplate{title page} is unreliable with themes like
+      -- metropolis that replace the title page template entirely.
+      table.insert(new_blocks, 1, pandoc.RawBlock("latex", reset_background_latex(use_tikz)))
     end
   end
 
