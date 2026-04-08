@@ -1,0 +1,136 @@
+\documentclass[aspectratio=169]{beamer}
+\usetheme{metropolis}
+
+% ── etoolbox approach: BeforeBeginEnvironment + global flag ──────────────────
+\usepackage{etoolbox}
+\usepackage{tikz}
+\usepackage{graphicx}
+
+\newif\ifbgpending    % true  → next frame should get a background
+\newif\ifbgopaque     % true  → use \usebackgroundtemplate; false → TikZ opacity
+\global\bgpendingfalse
+\global\bgopaquetrue
+\gdef\bgpendingimage{}
+\gdef\bgpendingsize{cover}
+\gdef\bgpendingopc{1}
+
+% This hook fires at the true outer level, before \begin{frame} opens any
+% group, so assignments here are effectively global even without \global.
+\BeforeBeginEnvironment{frame}{%
+  \ifbgpending
+    % ── decide cover vs contain ──────────────────────────────────────────────
+    \def\tmpsize{\bgpendingsize}%
+    \def\tmpcontain{contain}%
+    \ifbgopaque
+      % ── opaque: \usebackgroundtemplate ─────────────────────────────────────
+      \ifx\tmpsize\tmpcontain
+        \usebackgroundtemplate{%
+          \includegraphics[width=\paperwidth,height=\paperheight,keepaspectratio]%
+            {\bgpendingimage}}%
+      \else
+        \usebackgroundtemplate{%
+          \includegraphics[width=\paperwidth,height=\paperheight]%
+            {\bgpendingimage}}%
+      \fi
+    \else
+      % ── transparent: TikZ node with opacity ────────────────────────────────
+      \ifx\tmpsize\tmpcontain
+        \setbeamertemplate{background}{%
+          \begin{tikzpicture}[remember picture,overlay]
+            \node[opacity=\bgpendingopc] at (current page.center)
+              {\includegraphics[width=\paperwidth,height=\paperheight,
+                                keepaspectratio]{\bgpendingimage}};
+          \end{tikzpicture}}%
+      \else
+        \setbeamertemplate{background}{%
+          \begin{tikzpicture}[remember picture,overlay]
+            \node[opacity=\bgpendingopc] at (current page.center)
+              {\includegraphics[width=\paperwidth,height=\paperheight]%
+                {\bgpendingimage}};
+          \end{tikzpicture}}%
+      \fi
+    \fi
+    % clear the flag so the NEXT frame reverts to no background
+    \global\bgpendingfalse
+    \global\bgopaquetrue
+  \else
+    % no background requested → reset both template slots
+    \usebackgroundtemplate{}%
+    \setbeamertemplate{background}{}%
+  \fi
+}
+% ─────────────────────────────────────────────────────────────────────────────
+
+\title{BeforeBeginEnvironment Test}
+\author{Test}
+\date{}
+
+\begin{document}
+
+% ── Slide 1: title (plain, NO background) ───────────────────────────────────
+\begin{frame}[plain,noframenumbering]
+  \titlepage
+\end{frame}
+
+% ── Slide 2: plain text, NO background ──────────────────────────────────────
+\begin{frame}
+  \frametitle{Slide 2 — No Background}
+  This slide should have the default (empty) background.
+\end{frame}
+
+% set flag for slide 3 only
+\gdef\bgpendingimage{/home/user/pandoc-course-template/lectures/img/sullivans.jpg}
+\gdef\bgpendingsize{cover}
+\global\bgopaquetrue
+\global\bgpendingtrue
+
+% ── Slide 3: WITH background (opaque, cover) ─────────────────────────────────
+\begin{frame}
+  \frametitle{Slide 3 — WITH Background (opaque)}
+  The sullivans.jpg image should fill this slide.
+\end{frame}
+
+% ── Slide 4: NO background (flag was cleared by hook) ───────────────────────
+\begin{frame}
+  \frametitle{Slide 4 — No Background Again}
+  Background must be gone. If you still see it, the reset failed.
+\end{frame}
+
+% set flag for slide 5 (TikZ opacity)
+\gdef\bgpendingimage{/home/user/pandoc-course-template/lectures/img/sullivans.jpg}
+\gdef\bgpendingsize{cover}
+\gdef\bgpendingopc{0.35}
+\global\bgopaquefalse
+\global\bgpendingtrue
+
+% ── Slide 5: WITH background (semi-transparent via TikZ) ────────────────────
+\begin{frame}
+  \frametitle{Slide 5 — Background at 35\% opacity}
+  The image should appear faintly behind this text.
+\end{frame}
+
+% ── Slide 6: NO background ──────────────────────────────────────────────────
+\begin{frame}
+  \frametitle{Slide 6 — No Background After Opacity Slide}
+  Background must be gone again.
+\end{frame}
+
+% set flag for slide 7 (contain sizing)
+\gdef\bgpendingimage{/home/user/pandoc-course-template/lectures/img/sullivans.jpg}
+\gdef\bgpendingsize{contain}
+\global\bgopaquetrue
+\global\bgpendingtrue
+
+% ── Slide 7: WITH background (contain sizing) ───────────────────────────────
+\begin{frame}
+  \frametitle{Slide 7 — Background (contain)}
+  Image should be letterboxed / pillarboxed with bars visible.
+\end{frame}
+
+% ── Slide 8: NO background ──────────────────────────────────────────────────
+\begin{frame}
+  \frametitle{Slide 8 — Plain Again}
+  Clean slide after contain-sized background.
+\end{frame}
+
+\end{document}
