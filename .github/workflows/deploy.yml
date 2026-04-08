@@ -9,17 +9,11 @@ on:
   workflow_dispatch:
 
 jobs:
-  build-and-deploy:
+  build:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      pages: write
-      id-token: write
 
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
-    
     container:
       image: pandoc/latex:3.9
       options: --user root
@@ -30,7 +24,7 @@ jobs:
 
       - name: Install Python and Dependencies
         run: |
-          apk add --no-cache python3 py3-pip py3-yaml make 
+          apk add --no-cache python3 py3-pip py3-yaml make
           tlmgr update --self
           tlmgr install libertine \
                   sourcecodepro \
@@ -54,16 +48,40 @@ jobs:
           /usr/local/dart-sass/sass --version
 
       - name: Build public documents for website
-        run: |
-          make public
+        run: make public
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: build
+          path: build/
+
+  deploy:
+    needs: build
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
+    steps:
+      - name: Download build artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: build
+          path: build/
 
       - name: Setup Pages
         uses: actions/configure-pages@v5
 
-      - name: Upload artifact
+      - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: './build'
+          path: build/
 
       - name: Deploy to GitHub Pages
         id: deployment
