@@ -51,9 +51,9 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ./build
-          key: build-${{ github.sha }}
+          key: build-v1-${{ hashFiles('Makefile', '_config.toml', 'references.bib', 'apa.csl') }}-${{ github.sha }}
           restore-keys: |
-            build-
+            build-v1-${{ hashFiles('Makefile', '_config.toml', 'references.bib', 'apa.csl') }}-
 
       - name: Restore file modification times
         uses: chetan/git-restore-mtime-action@v2
