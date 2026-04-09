@@ -3,24 +3,60 @@ on:
   push:
     branches:
       - main
+    paths:
+      - '.github/workflows/*'
+      - 'lectures/**'
+      - 'assessments/**'
+      - 'workshops/**'
+      - 'resources/**'
+      - 'css/**'
+      - 'Makefile'
+      - '_config.toml'
+      - 'references.bib'
+      - 'apa.csl'
   pull_request:
     branches:
       - main
   workflow_dispatch:
 
 jobs:
-  build:
+  build-and-deploy:
     runs-on: ubuntu-latest
     permissions:
       contents: read
+      pages: write
+      id-token: write
+
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
 
     container:
       image: pandoc/latex:3.9
       options: --user root
 
     steps:
+      - name: Install bash and git
+        run: apk add --no-cache bash git
+
       - name: Checkout Repository
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Mark workspace as git safe directory
+        run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
+
+      - name: Restore build cache
+        uses: actions/cache@v4
+        with:
+          path: ./build
+          key: build-${{ github.sha }}
+          restore-keys: |
+            build-
+
+      - name: Restore file modification times
+        uses: chetan/git-restore-mtime-action@v2
 
       - name: Install Python and Dependencies
         run: |
@@ -48,41 +84,20 @@ jobs:
           /usr/local/dart-sass/sass --version
 
       - name: Build public documents for website
-        run: make public
-
-      - name: Upload build artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: build
-          path: build/
-
-  deploy:
-    needs: build
-    if: github.event_name != 'pull_request'
-    runs-on: ubuntu-latest
-    permissions:
-      pages: write
-      id-token: write
-
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
-
-    steps:
-      - name: Download build artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: build
-          path: build/
+        run: |
+          make public
 
       - name: Setup Pages
+        if: github.event_name != 'pull_request'
         uses: actions/configure-pages@v5
 
-      - name: Upload Pages artifact
+      - name: Upload artifact
+        if: github.event_name != 'pull_request'
         uses: actions/upload-pages-artifact@v3
         with:
-          path: build/
+          path: ./build
 
       - name: Deploy to GitHub Pages
+        if: github.event_name != 'pull_request'
         id: deployment
         uses: actions/deploy-pages@v4
