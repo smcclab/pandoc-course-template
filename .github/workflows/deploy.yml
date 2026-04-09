@@ -37,7 +37,7 @@ jobs:
 
     steps:
       - name: Install bash and git
-        run: apk add --no-cache bash git
+        run: apk add --no-cache bash git python3
 
       - name: Checkout Repository
         uses: actions/checkout@v4
