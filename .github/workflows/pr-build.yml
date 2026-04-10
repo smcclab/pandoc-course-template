@@ -1,32 +1,15 @@
-name: Build and Deploy Course Materials
+name: PR Build Check
+
 on:
-  push:
+  pull_request:
     branches:
       - main
-    paths:
-      - '.github/workflows/*'
-      - 'lectures/**'
-      - 'assessments/**'
-      - 'workshops/**'
-      - 'resources/**'
-      - 'css/**'
-      - 'Makefile'
-      - '_config.toml'
-      - 'references.bib'
-      - 'apa.csl'
-  workflow_dispatch:
 
 jobs:
-  build-and-deploy:
+  build:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      pages: write
-      id-token: write
-
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
 
     container:
       image: pandoc/latex:3.9
@@ -34,26 +17,13 @@ jobs:
 
     steps:
       - name: Install bash and git
-        run: apk add --no-cache bash git python3
+        run: apk add --no-cache bash git
 
       - name: Checkout Repository
         uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
 
       - name: Mark workspace as git safe directory
         run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
-
-      - name: Restore build cache
-        uses: actions/cache@v4
-        with:
-          path: ./build
-          key: build-v1-${{ hashFiles('Makefile', '_config.toml', 'references.bib', 'apa.csl') }}-${{ github.sha }}
-          restore-keys: |
-            build-v1-${{ hashFiles('Makefile', '_config.toml', 'references.bib', 'apa.csl') }}-
-
-      - name: Restore file modification times
-        uses: chetan/git-restore-mtime-action@v2
 
       - name: Install Python and Dependencies
         run: |
@@ -80,18 +50,13 @@ jobs:
           rm dart-sass.tar.gz
           /usr/local/dart-sass/sass --version
 
-      - name: Build public documents for website
+      - name: Build public documents
         run: |
           make public
 
-      - name: Setup Pages
-        uses: actions/configure-pages@v5
-
-      - name: Upload artifact
-        uses: actions/upload-pages-artifact@v3
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
         with:
+          name: build
           path: ./build
-
-      - name: Deploy to GitHub Pages
-        id: deployment
-        uses: actions/deploy-pages@v4
+          retention-days: 7
