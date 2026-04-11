@@ -16,8 +16,8 @@ jobs:
       options: --user root
 
     steps:
-      - name: Install bash and git
-        run: apk add --no-cache bash git
+      - name: Install Alpine Dependencies
+        run: apk add --no-cache bash git python3 py3-pip py3-yaml make
 
       - name: Checkout Repository
         uses: actions/checkout@v4
@@ -25,9 +25,8 @@ jobs:
       - name: Mark workspace as git safe directory
         run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
 
-      - name: Install Python and Dependencies
+      - name: Install Latex Dependencies
         run: |
-          apk add --no-cache python3 py3-pip py3-yaml make
           tlmgr update --self
           tlmgr install libertine \
                   sourcecodepro \
