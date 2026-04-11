@@ -143,12 +143,24 @@ local PREAMBLE_HOOK = [[
   \fi
 }]]
 
--- Generate title-slide background LaTeX using \AddToHookNext{shipout/background}.
--- This one-shot hook fires exactly once for the first page shipped (the title page)
--- and then removes itself automatically — no bleed onto section separators or content.
--- \AtBeginDocument wrapping ensures tikz is loaded before the hook body executes.
+-- Generate title-slide background LaTeX.
+--
+-- Strategy (empirically proven; shipout hooks don't work with beamer):
+--   \AtBeginDocument sets \setbeamertemplate{background} to the image (same
+--   mechanism as per-slide backgrounds) and arms \bgactivetrue so the first
+--   \begin{frame} resets it via the existing \BeforeBeginEnvironment hook.
+--
+--   Section-separator pages (\frame{\sectionpage}) don't trigger
+--   \BeforeBeginEnvironment{frame}, so we use \makeatletter to prepend a
+--   reset to beamer's internal \beamer@atbeginsection macro — this fires
+--   before \frame{\sectionpage} is called, clearing the template in time.
 local function make_title_bg_latex(image, size, opacity)
   size = size or "cover"
+
+  local node_opts = ""
+  if not is_opaque(opacity) then
+    node_opts = string.format("[opacity=%s]", opacity)
+  end
 
   local include_opts
   if size == "contain" then
@@ -157,20 +169,22 @@ local function make_title_bg_latex(image, size, opacity)
     include_opts = "width=\\paperwidth,height=\\paperheight"
   end
 
-  local node_opts = ""
-  if not is_opaque(opacity) then
-    node_opts = string.format("[opacity=%s]", opacity)
-  end
-
   return string.format([[
 \AtBeginDocument{%%
-  \AddToHookNext{shipout/background}{%%
+  \setbeamertemplate{background}{%%
     \begin{tikzpicture}[remember picture,overlay]
       \node%s at (current page.center)
         {\includegraphics[%s]{%s}};
     \end{tikzpicture}%%
   }%%
-}]], node_opts, include_opts, image)
+  \global\bgactivetrue
+}
+\makeatletter
+\preto\beamer@atbeginsection{%%
+  \setbeamertemplate{background}{}%%
+  \global\bgactivefalse
+}
+\makeatother]], node_opts, include_opts, image)
 end
 
 -- Prepend an item to a MetaList (or create one from a single value).
@@ -215,16 +229,15 @@ function Pandoc(doc)
     table.insert(new_blocks, block)
   end
 
-  -- Install preamble hook only when at least one content slide needs it.
-  if has_content_bg then
-    prepend_header_include(doc.meta, PREAMBLE_HOOK)
-  end
-
   -- Handle title-slide background from frontmatter title-slide-attributes.
   -- \frame{\titlepage} does not trigger \BeforeBeginEnvironment{frame}, so we
-  -- use \AddToHookNext{shipout/background} — a one-shot hook that fires for
-  -- exactly one page (the title) then removes itself.
+  -- set \setbeamertemplate{background} in \AtBeginDocument and rely on:
+  --   • \preto\beamer@atbeginsection — resets before section separator pages
+  --   • \BeforeBeginEnvironment{frame} + \bgactivetrue — resets on first content frame
   local title_attrs = doc.meta["title-slide-attributes"]
+  local has_title_bg = false
+  local title_bg_latex = nil
+
   if title_attrs then
     local title_bg      = nil
     local title_size    = "cover"
@@ -242,13 +255,20 @@ function Pandoc(doc)
     end
 
     if title_bg then
-      title_bg = resolve_image_path(title_bg)
-      -- Ensure tikz is available when PREAMBLE_HOOK is not injected.
-      if not has_content_bg then
-        prepend_header_include(doc.meta, "\\usepackage{tikz}")
-      end
-      prepend_header_include(doc.meta, make_title_bg_latex(title_bg, title_size, title_opacity))
+      has_title_bg = true
+      title_bg_latex = make_title_bg_latex(
+        resolve_image_path(title_bg), title_size, title_opacity)
     end
+  end
+
+  -- PREAMBLE_HOOK provides the flags (\ifbgactive etc.) and the
+  -- \BeforeBeginEnvironment{frame} reset used by both per-slide and title bgs.
+  if has_content_bg or has_title_bg then
+    prepend_header_include(doc.meta, PREAMBLE_HOOK)
+  end
+
+  if has_title_bg then
+    prepend_header_include(doc.meta, title_bg_latex)
   end
 
   return pandoc.Pandoc(new_blocks, doc.meta)
