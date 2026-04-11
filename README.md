@@ -17,7 +17,7 @@ A [dev container](https://containers.dev/) is included (`.devcontainer/`), provi
 
 ## Content Structure
 
-- `lectures/` — Slide decks (`.md`), built to reveal.js HTML + Beamer PDF
+- `lectures/` — Slide decks (`.md`), built to reveal.js HTML + Beamer PDF (including title-slide background images for both formats)
 - `assessments/` — Assessment specs (`.md`), built to HTML + PDF
 - `workshops/` — Workshop/tutorial activities (`.md`), built to HTML only
 - `resources/` — Supplementary resources (`.md`), built to HTML only
@@ -41,7 +41,10 @@ See the Makefile for additional targets (`reveal`, `beamer`, `assessments`, `wor
 
 ## Deploying
 
-The included GitHub Actions workflow (`.github/workflows/deploy.yml`) runs `make public` on push to `main` and deploys the `build/` directory to GitHub Pages. The `public` target excludes `resources/`, making them suitable for internal or staff-only materials.
+Two GitHub Actions workflows are included:
+
+- **Deploy** (`.github/workflows/deploy.yml`) — runs `make public` on push to `main` and deploys the `build/` directory to GitHub Pages. Uses build caching and restored file modification times for incremental builds (only changed files are rebuilt). The `public` target excludes `resources/`, making them suitable for internal or staff-only materials.
+- **PR Build Check** (`.github/workflows/pr-build.yml`) — runs `make public` on every pull request to `main` and uploads the result as a build artifact, so you can verify the build before merging.
 
 ## VS Code Integration
 
@@ -57,7 +60,7 @@ The `.vscode/` directory includes some quality-of-life configurations:
 |---|---|
 | `slide` | New `##` slide |
 | `section` | New `#` section title slide |
-| `frontmatter` | YAML front matter with title-slide background image |
+| `frontmatter` | YAML front matter with title-slide background image (works for both reveal.js and Beamer PDF) |
 | `slidebg` | Slide heading with background image attribute |
 | `columns` | Two-column layout |
 | `notes` | Speaker notes block |
