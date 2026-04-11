@@ -2,8 +2,8 @@
 title: "Example Lecture"
 author: Your Name
 title-slide-attributes:
-    data-background-image: img/sullivans.jpg
-    data-background-size: cover
+  data-background-image: img/dalmeny.jpg
+  data-background-size: cover
 ---
 
 # Basic Slides
@@ -127,7 +127,7 @@ You can also include a page number [@Norman:2013, p42].
 1. Step one
 2. Step two
 3. Step three
-:::
+   :::
 
 ## Questions
 
