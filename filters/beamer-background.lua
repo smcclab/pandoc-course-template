@@ -1,6 +1,6 @@
 -- beamer-background.lua
 --
--- Adds per-slide background image support for Beamer PDF output.
+-- Adds per-slide and title-slide background image support for Beamer PDF output.
 -- Reads the same attributes used by reveal.js, so slides work across
 -- both output formats without any changes to the Markdown source.
 --
@@ -9,12 +9,14 @@
 --   background-size="cover"               (optional; "cover" or "contain", default: cover)
 --   background-opacity="0.4"              (optional; 0.0–1.0, default: 1.0)
 --
+-- Title slide background is read from the frontmatter:
+--   title-slide-attributes:
+--     data-background-image: img/foo.jpg
+--     data-background-size: cover         (optional)
+--     data-background-opacity: "0.4"      (optional)
+--
 -- Example:
 --   ## My Slide {background-image="img/hero.jpg" background-size="cover"}
---
--- Note: title-slide backgrounds (title-slide-attributes) are not handled
--- here; \frame{\titlepage} does not trigger \BeforeBeginEnvironment{frame}
--- and requires separate treatment.
 --
 -- ── Strategy ─────────────────────────────────────────────────────────────────
 -- Content slides always use \begin{frame}, so \BeforeBeginEnvironment{frame}
@@ -141,6 +143,36 @@ local PREAMBLE_HOOK = [[
   \fi
 }]]
 
+-- Generate title-slide background LaTeX using \AddToHookNext{shipout/background}.
+-- This one-shot hook fires exactly once for the first page shipped (the title page)
+-- and then removes itself automatically — no bleed onto section separators or content.
+-- \AtBeginDocument wrapping ensures tikz is loaded before the hook body executes.
+local function make_title_bg_latex(image, size, opacity)
+  size = size or "cover"
+
+  local include_opts
+  if size == "contain" then
+    include_opts = "width=\\paperwidth,height=\\paperheight,keepaspectratio"
+  else
+    include_opts = "width=\\paperwidth,height=\\paperheight"
+  end
+
+  local node_opts = ""
+  if not is_opaque(opacity) then
+    node_opts = string.format("[opacity=%s]", opacity)
+  end
+
+  return string.format([[
+\AtBeginDocument{%%
+  \AddToHookNext{shipout/background}{%%
+    \begin{tikzpicture}[remember picture,overlay]
+      \node%s at (current page.center)
+        {\includegraphics[%s]{%s}};
+    \end{tikzpicture}%%
+  }%%
+}]], node_opts, include_opts, image)
+end
+
 -- Prepend an item to a MetaList (or create one from a single value).
 local function prepend_header_include(meta, raw_latex)
   local item = pandoc.MetaBlocks({ pandoc.RawBlock("latex", raw_latex) })
@@ -186,6 +218,37 @@ function Pandoc(doc)
   -- Install preamble hook only when at least one content slide needs it.
   if has_content_bg then
     prepend_header_include(doc.meta, PREAMBLE_HOOK)
+  end
+
+  -- Handle title-slide background from frontmatter title-slide-attributes.
+  -- \frame{\titlepage} does not trigger \BeforeBeginEnvironment{frame}, so we
+  -- use \AddToHookNext{shipout/background} — a one-shot hook that fires for
+  -- exactly one page (the title) then removes itself.
+  local title_attrs = doc.meta["title-slide-attributes"]
+  if title_attrs then
+    local title_bg      = nil
+    local title_size    = "cover"
+    local title_opacity = nil
+
+    for k, v in pairs(title_attrs) do
+      local val = pandoc.utils.stringify(v)
+      if k == "data-background-image" then
+        title_bg = val
+      elseif k == "data-background-size" then
+        title_size = val
+      elseif k == "data-background-opacity" then
+        title_opacity = val
+      end
+    end
+
+    if title_bg then
+      title_bg = resolve_image_path(title_bg)
+      -- Ensure tikz is available when PREAMBLE_HOOK is not injected.
+      if not has_content_bg then
+        prepend_header_include(doc.meta, "\\usepackage{tikz}")
+      end
+      prepend_header_include(doc.meta, make_title_bg_latex(title_bg, title_size, title_opacity))
+    end
   end
 
   return pandoc.Pandoc(new_blocks, doc.meta)
