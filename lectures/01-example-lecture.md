@@ -127,7 +127,7 @@ You can also include a page number [@Norman:2013, p42].
 1. Step one
 2. Step two
 3. Step three
-   :::
+:::
 
 ## Questions
 
