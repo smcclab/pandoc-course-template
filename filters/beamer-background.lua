@@ -1,6 +1,6 @@
 -- beamer-background.lua
 --
--- Adds per-slide background image support for Beamer PDF output.
+-- Adds per-slide and title-slide background image support for Beamer PDF output.
 -- Reads the same attributes used by reveal.js, so slides work across
 -- both output formats without any changes to the Markdown source.
 --
@@ -9,12 +9,14 @@
 --   background-size="cover"               (optional; "cover" or "contain", default: cover)
 --   background-opacity="0.4"              (optional; 0.0–1.0, default: 1.0)
 --
+-- Title slide background is read from the frontmatter:
+--   title-slide-attributes:
+--     data-background-image: img/foo.jpg
+--     data-background-size: cover         (optional)
+--     data-background-opacity: "0.4"      (optional)
+--
 -- Example:
 --   ## My Slide {background-image="img/hero.jpg" background-size="cover"}
---
--- Note: title-slide backgrounds (title-slide-attributes) are not handled
--- here; \frame{\titlepage} does not trigger \BeforeBeginEnvironment{frame}
--- and requires separate treatment.
 --
 -- ── Strategy ─────────────────────────────────────────────────────────────────
 -- Content slides always use \begin{frame}, so \BeforeBeginEnvironment{frame}
@@ -141,6 +143,50 @@ local PREAMBLE_HOOK = [[
   \fi
 }]]
 
+-- Generate title-slide background LaTeX.
+--
+-- Strategy (empirically proven; shipout hooks don't work with beamer):
+--   \AtBeginDocument sets \setbeamertemplate{background} to the image (same
+--   mechanism as per-slide backgrounds) and arms \bgactivetrue so the first
+--   \begin{frame} resets it via the existing \BeforeBeginEnvironment hook.
+--
+--   Section-separator pages (\frame{\sectionpage}) don't trigger
+--   \BeforeBeginEnvironment{frame}, so we use \makeatletter to prepend a
+--   reset to beamer's internal \beamer@atbeginsection macro — this fires
+--   before \frame{\sectionpage} is called, clearing the template in time.
+local function make_title_bg_latex(image, size, opacity)
+  size = size or "cover"
+
+  local node_opts = ""
+  if not is_opaque(opacity) then
+    node_opts = string.format("[opacity=%s]", opacity)
+  end
+
+  local include_opts
+  if size == "contain" then
+    include_opts = "width=\\paperwidth,height=\\paperheight,keepaspectratio"
+  else
+    include_opts = "width=\\paperwidth,height=\\paperheight"
+  end
+
+  return string.format([[
+\AtBeginDocument{%%
+  \setbeamertemplate{background}{%%
+    \begin{tikzpicture}[remember picture,overlay]
+      \node%s at (current page.center)
+        {\includegraphics[%s]{%s}};
+    \end{tikzpicture}%%
+  }%%
+  \global\bgactivetrue
+}
+\makeatletter
+\preto\beamer@atbeginsection{%%
+  \setbeamertemplate{background}{}%%
+  \global\bgactivefalse
+}
+\makeatother]], node_opts, include_opts, image)
+end
+
 -- Prepend an item to a MetaList (or create one from a single value).
 local function prepend_header_include(meta, raw_latex)
   local item = pandoc.MetaBlocks({ pandoc.RawBlock("latex", raw_latex) })
@@ -183,9 +229,46 @@ function Pandoc(doc)
     table.insert(new_blocks, block)
   end
 
-  -- Install preamble hook only when at least one content slide needs it.
-  if has_content_bg then
+  -- Handle title-slide background from frontmatter title-slide-attributes.
+  -- \frame{\titlepage} does not trigger \BeforeBeginEnvironment{frame}, so we
+  -- set \setbeamertemplate{background} in \AtBeginDocument and rely on:
+  --   • \preto\beamer@atbeginsection — resets before section separator pages
+  --   • \BeforeBeginEnvironment{frame} + \bgactivetrue — resets on first content frame
+  local title_attrs = doc.meta["title-slide-attributes"]
+  local has_title_bg = false
+  local title_bg_latex = nil
+
+  if title_attrs then
+    local title_bg      = nil
+    local title_size    = "cover"
+    local title_opacity = nil
+
+    for k, v in pairs(title_attrs) do
+      local val = pandoc.utils.stringify(v)
+      if k == "data-background-image" then
+        title_bg = val
+      elseif k == "data-background-size" then
+        title_size = val
+      elseif k == "data-background-opacity" then
+        title_opacity = val
+      end
+    end
+
+    if title_bg then
+      has_title_bg = true
+      title_bg_latex = make_title_bg_latex(
+        resolve_image_path(title_bg), title_size, title_opacity)
+    end
+  end
+
+  -- PREAMBLE_HOOK provides the flags (\ifbgactive etc.) and the
+  -- \BeforeBeginEnvironment{frame} reset used by both per-slide and title bgs.
+  if has_content_bg or has_title_bg then
     prepend_header_include(doc.meta, PREAMBLE_HOOK)
+  end
+
+  if has_title_bg then
+    prepend_header_include(doc.meta, title_bg_latex)
   end
 
   return pandoc.Pandoc(new_blocks, doc.meta)
