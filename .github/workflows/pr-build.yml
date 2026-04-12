@@ -53,6 +53,19 @@ jobs:
         run: |
           make public
 
+      - name: Install HTMLProofer
+        run: |
+          apk add --no-cache ruby
+          gem install html-proofer --no-document
+
+      - name: Check built site with HTMLProofer
+        run: |
+          htmlproofer ./build \
+            --disable-external \
+            --allow-hash-href \
+            --ignore-missing-alt \
+            --no-enforce-https
+
       - name: Upload build artifact
         uses: actions/upload-artifact@v4
         with:
