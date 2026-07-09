@@ -29,7 +29,7 @@ jobs:
       url: ${{ steps.deployment.outputs.page_url }}
 
     container:
-      image: pandoc/latex:3.9
+      image: pandoc/latex:3.10.0.0-alpine
       options: --user root
 
     steps:
@@ -57,6 +57,12 @@ jobs:
 
       - name: Install Latex Dependencies
         run: |
+          # This image ships TeX Live 2026, matching the current live CTAN
+          # release. tlmgr still refuses to install until its own revision
+          # matches the (moving) live tlnet repo, so self-update first — this
+          # is allowed now that image and repo are the same release year.
+          # If the live CTAN later rolls over to 2027, bump the image tag to a
+          # pandoc/latex build carrying that year's TeX Live to keep them aligned.
           tlmgr update --self
           tlmgr install libertine \
                   sourcecodepro \
