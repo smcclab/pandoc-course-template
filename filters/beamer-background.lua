@@ -1,15 +1,16 @@
 -- beamer-background.lua
 --
--- Adds per-slide and title-slide background image support for Beamer PDF output.
--- Reads the same attributes used by reveal.js, so slides work across
--- both output formats without any changes to the Markdown source.
+-- Adds per-slide, section-page and title-slide background image support for
+-- Beamer PDF output. It reads the same attributes reveal.js already uses, so a
+-- deck gets the same backgrounds in both output formats with no change to the
+-- Markdown source.
 --
--- Supported attributes on ## headings:
---   background-image="img/foo.jpg"        (required)
+-- Supported attributes on `#` and `##` headings:
+--   background-image="img/foo.jpg"        (required; data-background-image also accepted)
 --   background-size="cover"               (optional; "cover" or "contain", default: cover)
 --   background-opacity="0.4"              (optional; 0.0–1.0, default: 1.0)
 --
--- Title slide background is read from the frontmatter:
+-- Title slide background comes from the frontmatter:
 --   title-slide-attributes:
 --     data-background-image: img/foo.jpg
 --     data-background-size: cover         (optional)
@@ -19,25 +20,47 @@
 --   ## My Slide {background-image="img/hero.jpg" background-size="cover"}
 --
 -- ── Strategy ─────────────────────────────────────────────────────────────────
--- Content slides always use \begin{frame}, so \BeforeBeginEnvironment{frame}
--- fires reliably at the true outer TeX level before any group opens.
+-- Beamer paints \setbeamertemplate{background} beneath everything else on the
+-- page, so that is the layer we use. The theme's own `background canvas` is
+-- never touched, which leaves the metropolis/owl colours intact.
 --
--- A raw LaTeX block is inserted just before each background heading to arm a
--- global flag (\ifbgpending).  The hook reads the flag and installs a TikZ-
--- based \setbeamertemplate{background} overlay.  Using the overlay layer
--- (never \usebackgroundtemplate / background canvas) means the beamer theme's
--- own canvas colour is never disturbed.
+-- The template is installed exactly once, in the preamble, as an indirection
+-- through a single macro:
 --
--- A second flag (\ifbgactive) tracks whether a background is currently applied
--- so that plain frames only receive a reset call on the transition from a
--- background slide, leaving all other frames' default styling completely intact.
+--     \setbeamertemplate{background}{\bgcurrent}
+--
+-- \bgcurrent is expanded at *shipout*, not where it is set, and a beamer frame
+-- ships out at its \end{frame} — after its entire body has been read. So a
+-- frame renders whatever \bgcurrent holds at the end of its body:
+--
+--   * \BeforeBeginEnvironment{frame} clears \bgcurrent, so every frame starts
+--     out with no background image.
+--   * A frame that wants one carries \gdef\bgcurrent{...} as the first block of
+--     its own body. Nothing later can overwrite that before the frame ships,
+--     and the assignment is global so the frame group cannot swallow it.
+--
+-- Setting \bgcurrent from *inside* the body, rather than arming a flag before
+-- the frame, is what makes this reliable. Pandoc — not this filter — decides
+-- where frames begin and end, and a raw block emitted before a heading does not
+-- land where you would hope: it is absorbed into the *previous* frame's body,
+-- or, at the very start of the document, becomes a frame of its own and shows
+-- up in the PDF as a blank slide.
+--
+-- \frame{\titlepage} and \frame{\sectionpage} are the command form of the
+-- environment, so they never trip \BeforeBeginEnvironment{frame}, and neither
+-- has a body this filter can write into. They are handled separately:
+--   * the title background is set in \AtBeginDocument and survives until the
+--     first real \begin{frame} clears it;
+--   * section backgrounds are stored in the preamble under the section number
+--     and picked up by a patched \beamer@atbeginsection, which keeps them out
+--     of the block stream entirely.
 
 local function is_opaque(opacity)
   return opacity == nil or opacity == "" or opacity == "1" or opacity == "1.0"
 end
 
--- Resolve an image path to absolute so lualatex can find it regardless of
--- the temp directory it runs from.  Relative paths are resolved against the
+-- Resolve an image path to absolute so lualatex can find it regardless of the
+-- temp directory it runs from. Relative paths are resolved against the
 -- directory containing the first input file.
 local function resolve_image_path(image)
   if pandoc.path.is_absolute(image) then return image end
@@ -49,142 +72,82 @@ local function resolve_image_path(image)
   return pandoc.path.join({base, image})
 end
 
--- Arm the global flag just before a \begin{frame}.
--- Even if this raw block lands inside the previous frame's body (e.g. inside
--- a block environment), \gdef/\global assignments are unconditionally global
--- in TeX and will be visible when the hook fires for the next \begin{frame}.
-local function set_pending_latex(image, size, opacity)
-  size = size or "cover"
-  local lines = {
-    string.format("\\gdef\\bgpendingimage{%s}", image),
-    string.format("\\gdef\\bgpendingsize{%s}",  size),
-  }
-  if is_opaque(opacity) then
-    table.insert(lines, "\\global\\bgopaquetrue")
-  else
-    table.insert(lines, string.format("\\gdef\\bgpendingopc{%s}", opacity))
-    table.insert(lines, "\\global\\bgopaquefalse")
-  end
-  table.insert(lines, "\\global\\bgpendingtrue")
-  return table.concat(lines, "\n")
-end
-
--- Preamble block: declares flags/macros and installs the hook.
+-- Preamble: the fitting macros, the one-time template install, and the hooks
+-- that clear or supply \bgcurrent for each kind of frame.
 --
--- All image backgrounds are rendered as a TikZ \setbeamertemplate{background}
--- overlay so that the beamer background canvas (theme colours) is never
--- touched.  Conditionals are evaluated inside the hook (at outer TeX level,
--- before the frame group opens) so the correct template variant is installed
--- before beamer captures it for the frame.
---
--- \ifbgactive ensures plain frames only issue a \setbeamertemplate{background}{}
--- reset on the single frame that follows a background slide, and are otherwise
--- left untouched.
-local PREAMBLE_HOOK = [[
+-- \bgcoverimage reproduces CSS/reveal.js `cover`: scale the image so it fills
+-- the slide with no gap and let the excess run off the edge (the surrounding
+-- \clip discards it). Scaling to \paperwidth and measuring the result answers
+-- "which dimension is the constraining one?" without any ratio arithmetic, and
+-- the measured box is reused when width turns out to be the answer.
+local PREAMBLE = [[
 \usepackage{etoolbox}
 \usepackage{tikz}
-\newif\ifbgpending  % true → next \begin{frame} should receive a background image
-\newif\ifbgopaque   % true → opaque (no alpha); false → semi-transparent TikZ node
-\newif\ifbgactive   % true → a background is applied; reset on next plain frame
-\global\bgpendingfalse
-\global\bgopaquetrue
-\global\bgactivefalse
-\gdef\bgpendingimage{}
-\gdef\bgpendingsize{cover}
-\gdef\bgpendingopc{1}
-% Hook fires at the true outer TeX level, before \begin{frame} opens any group.
-\BeforeBeginEnvironment{frame}{%
-  \ifbgpending
-    \def\tmpbgsize{\bgpendingsize}%
-    \def\tmpcontain{contain}%
-    \ifbgopaque
-      \ifx\tmpbgsize\tmpcontain
-        \setbeamertemplate{background}{%
-          \begin{tikzpicture}[remember picture,overlay]
-            \node at (current page.center)
-              {\includegraphics[width=\paperwidth,height=\paperheight,
-                                keepaspectratio]{\bgpendingimage}};
-          \end{tikzpicture}}%
-      \else
-        \setbeamertemplate{background}{%
-          \begin{tikzpicture}[remember picture,overlay]
-            \node at (current page.center)
-              {\includegraphics[width=\paperwidth,height=\paperheight]%
-                {\bgpendingimage}};
-          \end{tikzpicture}}%
-      \fi
-    \else
-      \ifx\tmpbgsize\tmpcontain
-        \setbeamertemplate{background}{%
-          \begin{tikzpicture}[remember picture,overlay]
-            \node[opacity=\bgpendingopc] at (current page.center)
-              {\includegraphics[width=\paperwidth,height=\paperheight,
-                                keepaspectratio]{\bgpendingimage}};
-          \end{tikzpicture}}%
-      \else
-        \setbeamertemplate{background}{%
-          \begin{tikzpicture}[remember picture,overlay]
-            \node[opacity=\bgpendingopc] at (current page.center)
-              {\includegraphics[width=\paperwidth,height=\paperheight]%
-                {\bgpendingimage}};
-          \end{tikzpicture}}%
-      \fi
-    \fi
-    \global\bgpendingfalse
-    \global\bgopaquetrue
-    \global\bgactivetrue
+\newsavebox\bgmeasurebox
+\newcommand\bgcoverimage[1]{%
+  \sbox\bgmeasurebox{\includegraphics[width=\paperwidth]{#1}}%
+  \ifdim\ht\bgmeasurebox<\paperheight
+    \includegraphics[height=\paperheight]{#1}%
   \else
-    \ifbgactive
-      % Transitioning from a background slide to a plain slide: clear only the
-      % overlay layer so the theme's background canvas colour is preserved.
-      \setbeamertemplate{background}{}%
-      \global\bgactivefalse
-    \fi
-  \fi
-}]]
+    \usebox\bgmeasurebox
+  \fi}
+\newcommand\bgcontainimage[1]{%
+  \includegraphics[width=\paperwidth,height=\paperheight,keepaspectratio]{#1}}
+% #1 = node options ([opacity=...] or empty), #2 = fit macro, #3 = image path
+\newcommand\bgoverlay[3]{%
+  \begin{tikzpicture}[remember picture,overlay]
+    \clip (current page.south west) rectangle (current page.north east);
+    \node#1 at (current page.center) {#2{#3}};
+  \end{tikzpicture}}
+\gdef\bgcurrent{}
+\setbeamertemplate{background}{\bgcurrent}
+% Every frame starts clean; a frame with a background re-arms \bgcurrent itself.
+\BeforeBeginEnvironment{frame}{\gdef\bgcurrent{}}
+% Section pages are reached through \frame{\sectionpage}, which the environment
+% hook above never sees. \beamer@atbeginsection runs after \c@section has been
+% stepped, so the section number selects the right stored background; sections
+% without one resolve to \relax and render nothing. Both hook variants are
+% patched because beamer picks between them on whether the section title is
+% blank.
+\makeatletter
+\preto\beamer@atbeginsection{%
+  \gdef\bgcurrent{\csname bgsection@\the\c@section\endcsname}}
+\preto\beamer@atbeginsections{%
+  \gdef\bgcurrent{\csname bgsection@\the\c@section\endcsname}}
+\makeatother]]
 
--- Generate title-slide background LaTeX.
---
--- Strategy (empirically proven; shipout hooks don't work with beamer):
---   \AtBeginDocument sets \setbeamertemplate{background} to the image (same
---   mechanism as per-slide backgrounds) and arms \bgactivetrue so the first
---   \begin{frame} resets it via the existing \BeforeBeginEnvironment hook.
---
---   Section-separator pages (\frame{\sectionpage}) don't trigger
---   \BeforeBeginEnvironment{frame}, so we use \makeatletter to prepend a
---   reset to beamer's internal \beamer@atbeginsection macro — this fires
---   before \frame{\sectionpage} is called, clearing the template in time.
-local function make_title_bg_latex(image, size, opacity)
-  size = size or "cover"
-
+-- The TikZ overlay for one background, with the image path baked in literally.
+-- Nothing here is read from a mutable macro, so one slide's background can
+-- never be confused with another's.
+local function overlay_latex(image, size, opacity)
   local node_opts = ""
   if not is_opaque(opacity) then
     node_opts = string.format("[opacity=%s]", opacity)
   end
+  local fit = (size == "contain") and "\\bgcontainimage" or "\\bgcoverimage"
+  return string.format("\\bgoverlay{%s}{%s}{%s}", node_opts, fit, image)
+end
 
-  local include_opts
-  if size == "contain" then
-    include_opts = "width=\\paperwidth,height=\\paperheight,keepaspectratio"
-  else
-    include_opts = "width=\\paperwidth,height=\\paperheight"
+-- Read background attributes off a heading, accepting the data- prefixed
+-- spellings reveal.js also allows.
+local function background_of(attr)
+  local function get(name)
+    return attr.attributes[name] or attr.attributes["data-" .. name]
   end
+  local image = get("background-image")
+  if not image then return nil end
+  return {
+    image   = resolve_image_path(image),
+    size    = get("background-size"),
+    opacity = get("background-opacity"),
+  }
+end
 
-  return string.format([[
-\AtBeginDocument{%%
-  \setbeamertemplate{background}{%%
-    \begin{tikzpicture}[remember picture,overlay]
-      \node%s at (current page.center)
-        {\includegraphics[%s]{%s}};
-    \end{tikzpicture}%%
-  }%%
-  \global\bgactivetrue
-}
-\makeatletter
-\preto\beamer@atbeginsection{%%
-  \setbeamertemplate{background}{}%%
-  \global\bgactivefalse
-}
-\makeatother]], node_opts, include_opts, image)
+local function strip_background_attrs(attr)
+  for _, name in ipairs({ "background-image", "background-size", "background-opacity" }) do
+    attr.attributes[name] = nil
+    attr.attributes["data-" .. name] = nil
+  end
 end
 
 -- Prepend an item to a MetaList (or create one from a single value).
@@ -200,76 +163,109 @@ local function prepend_header_include(meta, raw_latex)
   end
 end
 
+-- Title-slide background: \frame{\titlepage} has no body to write into, so set
+-- \bgcurrent at the start of the document and let the first \begin{frame} (or
+-- the first section page) clear it.
+local function title_bg_latex(bg)
+  return string.format("\\AtBeginDocument{\\gdef\\bgcurrent{%s}}",
+    overlay_latex(bg.image, bg.size, bg.opacity))
+end
+
+-- Section-page background, stored under the section number the heading will get.
+local function section_bg_latex(number, bg)
+  return string.format("\\expandafter\\gdef\\csname bgsection@%d\\endcsname{%s}",
+    number, overlay_latex(bg.image, bg.size, bg.opacity))
+end
+
+local function is_unnumbered(attr)
+  for _, class in ipairs(attr.classes) do
+    if class == "unnumbered" then return true end
+  end
+  return false
+end
+
 function Pandoc(doc)
   if FORMAT ~= "beamer" then return nil end
 
-  local new_blocks     = {}
-  local has_content_bg = false
+  local new_blocks    = {}
+  local section_bgs   = {}
+  local section_count = 0
+  local used          = false
 
-  -- Inject flag-setter raw blocks before each background-image heading.
   for _, block in ipairs(doc.blocks) do
-    if block.t == "Header" and (block.level == 1 or block.level == 2) then
-      local bg      = block.attr.attributes["background-image"]
-      local size    = block.attr.attributes["background-size"]
-      local opacity = block.attr.attributes["background-opacity"]
+    if block.t == "Header" and block.level == 1 then
+      -- Level 1 becomes \section, whose separator page is generated by beamer
+      -- rather than appearing in this block list. Count the sections that
+      -- \c@section will count, and file any background under that number.
+      local numbered = not is_unnumbered(block.attr)
+      if numbered then section_count = section_count + 1 end
 
+      local bg = background_of(block.attr)
       if bg then
-        has_content_bg = true
-
-        table.insert(new_blocks, pandoc.RawBlock("latex",
-          set_pending_latex(resolve_image_path(bg), size, opacity)))
-
-        -- Strip attrs so Beamer doesn't trip on unknown keys.
-        block.attr.attributes["background-image"]   = nil
-        block.attr.attributes["background-size"]    = nil
-        block.attr.attributes["background-opacity"] = nil
+        strip_background_attrs(block.attr)
+        if numbered then
+          used = true
+          table.insert(section_bgs, section_bg_latex(section_count, bg))
+        else
+          -- Unnumbered sections never advance \c@section, so there is no key to
+          -- file the background under. Drop it rather than mis-assign it.
+          io.stderr:write(string.format(
+            "[beamer-background] ignoring background on unnumbered section %q\n",
+            pandoc.utils.stringify(block.content)))
+        end
       end
-    end
+      table.insert(new_blocks, block)
 
-    table.insert(new_blocks, block)
+    elseif block.t == "Header" and block.level == 2 then
+      -- Level 2 becomes a frame. Arm the background as the first block of that
+      -- frame's own body, where no other slide can reach it.
+      local bg = background_of(block.attr)
+      table.insert(new_blocks, block)
+      if bg then
+        used = true
+        strip_background_attrs(block.attr)
+        table.insert(new_blocks, pandoc.RawBlock("latex",
+          string.format("\\gdef\\bgcurrent{%s}",
+            overlay_latex(bg.image, bg.size, bg.opacity))))
+      end
+
+    else
+      table.insert(new_blocks, block)
+    end
   end
 
-  -- Handle title-slide background from frontmatter title-slide-attributes.
-  -- \frame{\titlepage} does not trigger \BeforeBeginEnvironment{frame}, so we
-  -- set \setbeamertemplate{background} in \AtBeginDocument and rely on:
-  --   • \preto\beamer@atbeginsection — resets before section separator pages
-  --   • \BeforeBeginEnvironment{frame} + \bgactivetrue — resets on first content frame
+  -- Title slide background from the frontmatter.
+  local title_latex = nil
   local title_attrs = doc.meta["title-slide-attributes"]
-  local has_title_bg = false
-  local title_bg_latex = nil
-
   if title_attrs then
-    local title_bg      = nil
-    local title_size    = "cover"
-    local title_opacity = nil
-
+    local image, size, opacity
     for k, v in pairs(title_attrs) do
       local val = pandoc.utils.stringify(v)
       if k == "data-background-image" then
-        title_bg = val
+        image = val
       elseif k == "data-background-size" then
-        title_size = val
+        size = val
       elseif k == "data-background-opacity" then
-        title_opacity = val
+        opacity = val
       end
     end
-
-    if title_bg then
-      has_title_bg = true
-      title_bg_latex = make_title_bg_latex(
-        resolve_image_path(title_bg), title_size, title_opacity)
+    if image then
+      used = true
+      title_latex = title_bg_latex({
+        image = resolve_image_path(image), size = size, opacity = opacity,
+      })
     end
   end
 
-  -- PREAMBLE_HOOK provides the flags (\ifbgactive etc.) and the
-  -- \BeforeBeginEnvironment{frame} reset used by both per-slide and title bgs.
-  if has_content_bg or has_title_bg then
-    prepend_header_include(doc.meta, PREAMBLE_HOOK)
-  end
+  if not used then return nil end
 
-  if has_title_bg then
-    prepend_header_include(doc.meta, title_bg_latex)
+  -- Order matters: PREAMBLE defines \bgoverlay and the fit macros, so it is
+  -- prepended last to land above everything that calls them.
+  if title_latex then prepend_header_include(doc.meta, title_latex) end
+  for i = #section_bgs, 1, -1 do
+    prepend_header_include(doc.meta, section_bgs[i])
   end
+  prepend_header_include(doc.meta, PREAMBLE)
 
   return pandoc.Pandoc(new_blocks, doc.meta)
 end

@@ -6,7 +6,7 @@ title-slide-attributes:
   data-background-size: cover
 ---
 
-# Basic Slides
+# Basic Slides {background-image="img/sullivans.jpg"}
 
 ## First Slide
 
@@ -49,6 +49,12 @@ Here's another one.
 Content can overlay a background image.
 
 Image of [Sullivans Creek, ANU Campus, Canberra](https://en.wikipedia.org/wiki/Sullivans_Creek).
+
+## Faded Background {background-image="img/dalmeny.jpg" background-opacity="0.4"}
+
+Neighbouring slides can use different images. `background-opacity` fades one back so heading text stays readable over a busy photo.
+
+`background-size="contain"` fits the whole image in rather than cropping it to fill.
 
 ## Speaker Notes
 

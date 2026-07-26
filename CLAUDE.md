@@ -30,7 +30,7 @@ CSS for reveal.js is compiled from SCSS:
 sass css/reveal_dark.scss build/lectures/reveal_dark.css
 ```
 
-Beamer PDFs are built with `lualatex` and require these fonts: Linux Libertine O, Noto Sans, Noto Color Emoji. Presentations use the metropolis theme with owl color scheme at 16:9 aspect ratio.
+Beamer PDFs are built with `lualatex` and require these fonts: Linux Libertine O, Noto Sans, Noto Color Emoji. Presentations use the metropolis theme with owl color scheme at 16:9 aspect ratio. They also require `pgf`/`tikz` and `etoolbox` (both are beamer dependencies, so a standard beamer install already has them) for slide background images — see `filters/beamer-background.lua`.
 
 ## Content Structure
 
@@ -38,6 +38,7 @@ Beamer PDFs are built with `lualatex` and require these fonts: Linux Libertine O
 - `assessments/` — Assessment specs (`.md`), built to HTML + PDF
 - `workshops/` — Tutorial/workshop activities (`.md`), built to HTML only
 - `resources/` — Supplementary resources (`.md`), built to HTML only
+- `filters/` — pandoc Lua filters (`beamer-background.lua`), applied via `BEAMER_OPTS`
 - Each content directory has its own `img/` subdirectory — images **cannot be shared across directories**
 - `references.bib` — Shared BibTeX references (APA citation style via `apa.csl`)
 - `_config.toml` — Course metadata (title, institution, author, year) used by `generate_index.py`
@@ -49,7 +50,12 @@ Lecture slides use pandoc's Markdown with `--slide-level 2`:
 - `##` headings create regular slides
 - `###` and below are content within a slide
 
-Lecture frontmatter includes title-slide background images:
+Reveal.js-specific syntax is supported (e.g., `{.columns}`, `{.column width="50%"}`, `background-image=` on headings).
+
+### Slide Background Images
+
+Backgrounds render in **both** reveal.js and Beamer PDF output from the same source. Title slide, from the frontmatter:
+
 ```yaml
 ---
 title: "Slide Title"
@@ -60,7 +66,17 @@ title-slide-attributes:
 ---
 ```
 
-Reveal.js-specific syntax is supported (e.g., `{.columns}`, `{.column width="50%"}`, `background-image=` on headings).
+Any `#` (section) or `##` (slide) heading, via attributes:
+
+```markdown
+## My Slide {background-image="img/hero.jpg" background-size="cover" background-opacity="0.4"}
+```
+
+`background-size` is `cover` (default, fills the slide and crops the overflow) or `contain` (whole image, letterboxed). `background-opacity` takes 0.0–1.0 and is useful when heading text would otherwise sit on a busy photo.
+
+The PDF side is `filters/beamer-background.lua`, wired in through `BEAMER_OPTS`. Beamer has no native equivalent of these attributes, so without the filter the backgrounds are silently dropped from the PDFs while still appearing in the HTML. Read the strategy comment at the top of the filter before changing it: the mechanism depends on *where* pandoc places raw blocks relative to `\begin{frame}`, and the obvious implementations fail in ways that are easy to miss — a background landing on the wrong slide, or an extra blank slide.
+
+One known gap: a background on an `{.unnumbered}` `#` heading is skipped (with a warning on stderr), because section pages are keyed by section number and unnumbered sections don't advance the counter.
 
 Citations use pandoc format: `[@bibtex-key]`, `[@bibtex-key, p26]`. References go in `references.bib`; referencing style is APA (`apa.csl`).
 
