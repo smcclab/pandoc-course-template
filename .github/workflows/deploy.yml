@@ -10,6 +10,7 @@ on:
       - 'workshops/**'
       - 'resources/**'
       - 'css/**'
+      - 'filters/**'
       - 'Makefile'
       - '_config.toml'
       - 'references.bib'
@@ -48,9 +49,12 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ./build
-          key: build-v1-${{ hashFiles('Makefile', '_config.toml', 'references.bib', 'apa.csl') }}-${{ github.sha }}
+          # filters/ is in the key because a filter change alters the PDFs
+          # without touching any .md. git-restore-mtime would leave the cached
+          # PDFs looking newer than their sources, and make would skip them.
+          key: build-v1-${{ hashFiles('Makefile', '_config.toml', 'references.bib', 'apa.csl', 'filters/**') }}-${{ github.sha }}
           restore-keys: |
-            build-v1-${{ hashFiles('Makefile', '_config.toml', 'references.bib', 'apa.csl') }}-
+            build-v1-${{ hashFiles('Makefile', '_config.toml', 'references.bib', 'apa.csl', 'filters/**') }}-
 
       - name: Restore file modification times (requires git and python3)
         uses: chetan/git-restore-mtime-action@v2
@@ -72,6 +76,7 @@ jobs:
                   hanging \
                   beamer \
                   beamertheme-metropolis \
+                  pgf \
                   pgfopts \
                   beamercolorthemeowl \
                   noto \

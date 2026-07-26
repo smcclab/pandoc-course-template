@@ -9,6 +9,7 @@ ASSESSMENTS_DIR = assessments
 WORKSHOPS_DIR   = workshops
 RESOURCES_DIR   = resources
 TEMPLATES_DIR   = templates
+FILTERS_DIR     = filters
 OUTPUT_DIR      = build
 IMAGE_DIR       = img
 
@@ -58,6 +59,11 @@ REVEAL_OPTS = -t revealjs \
               -V slideNumber=true \
               --css reveal_dark.css
 
+# Beamer has no native equivalent of reveal.js's background-image attributes, so
+# a Lua filter translates them into TikZ background overlays. Without it the
+# backgrounds are silently dropped from the PDFs.
+BEAMER_FILTER = $(FILTERS_DIR)/beamer-background.lua
+
 BEAMER_OPTS = -t beamer \
               -V aspectratio=169 \
               -V theme=metropolis \
@@ -65,7 +71,7 @@ BEAMER_OPTS = -t beamer \
               --pdf-engine=lualatex \
               -V mainfont="Noto Sans" \
               -V mainfontfallback="NotoColorEmoji:mode=harf" \
-              --lua-filter=filters/beamer-background.lua
+              --lua-filter=$(BEAMER_FILTER)
 
 # --pdf-engine=xelatex
 
@@ -118,7 +124,7 @@ $(LECTURES_OUT)/%.html: $(LECTURES_DIR)/%.md
 .PHONY: beamer
 beamer: $(LECTURES_OUT) $(BEAMER_PDFS)
 
-$(LECTURES_OUT)/%.pdf: $(LECTURES_DIR)/%.md
+$(LECTURES_OUT)/%.pdf: $(LECTURES_DIR)/%.md $(BEAMER_FILTER)
 	$(PANDOC) $(PANDOC_COMMON_OPTS) $(BEAMER_OPTS) $< -o $@
 
 # =============================================================================

@@ -42,6 +42,7 @@ jobs:
                   hanging \
                   beamer \
                   beamertheme-metropolis \
+                  pgf \
                   pgfopts \
                   beamercolorthemeowl \
                   noto \
